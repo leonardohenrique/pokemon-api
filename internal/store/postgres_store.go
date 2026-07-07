@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"math"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -19,23 +20,44 @@ func NewPokemonStore(db *pgxpool.Pool) *PokemonStore {
 	return &PokemonStore{db: db}
 }
 
-func (s *PokemonStore) GetAll(ctx context.Context) ([]models.Pokemon, error) {
-	rows, err := s.db.Query(ctx,
-		"SELECT id, name, type, level, hp FROM pokemons ORDER BY id")
+func (s *PokemonStore) GetAll(ctx context.Context, page, limit int) ([]models.Pokemon, int, error) {
+	offset := (page - 1) * limit
+
+	// Total de registros, pra calcular quantas páginas existem
+	var total int
+	err := s.db.QueryRow(ctx, "SELECT COUNT(*) FROM pokemons").Scan(&total)
 	if err != nil {
-		return nil, fmt.Errorf("failed to fetch pokemons: %w", err)
+		return nil, 0, fmt.Errorf("erro ao contar pokemons: %w", err)
+	}
+
+	rows, err := s.db.Query(ctx,
+		`SELECT id, name, type, level, hp FROM pokemons
+		 ORDER BY id
+		 LIMIT $1 OFFSET $2`,
+		limit, offset,
+	)
+	if err != nil {
+		return nil, 0, fmt.Errorf("erro ao buscar pokemons: %w", err)
 	}
 	defer rows.Close()
 
-	var result []models.Pokemon
+	result := make([]models.Pokemon, 0, limit)
 	for rows.Next() {
 		var p models.Pokemon
 		if err := rows.Scan(&p.ID, &p.Name, &p.Type, &p.Level, &p.HP); err != nil {
-			return nil, fmt.Errorf("failed to scan row: %w", err)
+			return nil, 0, fmt.Errorf("erro ao ler linha: %w", err)
 		}
 		result = append(result, p)
 	}
-	return result, nil
+
+	return result, total, nil
+}
+
+func TotalPages(totalItems, limit int) int {
+	if limit == 0 {
+		return 0
+	}
+	return int(math.Ceil(float64(totalItems) / float64(limit)))
 }
 
 func (s *PokemonStore) GetByID(ctx context.Context, id int) (models.Pokemon, error) {

@@ -7,3 +7,12 @@ type Pokemon struct {
 	Level int      `json:"level" validate:"required,min=1,max=100"`
 	HP    int      `json:"hp" validate:"required,min=1,max=999"`
 }
+
+// PaginatedResponse envolve qualquer lista de dados com metadados de paginação.
+type PaginatedResponse struct {
+	Data       interface{} `json:"data"`
+	Page       int         `json:"page"`
+	Limit      int         `json:"limit"`
+	TotalItems int         `json:"total_items"`
+	TotalPages int         `json:"total_pages"`
+}

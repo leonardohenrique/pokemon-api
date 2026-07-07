@@ -10,6 +10,12 @@ import (
 	"github.com/leonardohenrique/pokemon-api/internal/validation"
 )
 
+const (
+	defaultPage  = 1
+	defaultLimit = 10
+	maxLimit     = 100
+)
+
 type PokemonHandler struct {
 	Store *store.PokemonStore
 }
@@ -30,12 +36,48 @@ func writeError(w http.ResponseWriter, status int, message string) {
 
 // GET /pokemons
 func (h *PokemonHandler) List(w http.ResponseWriter, r *http.Request) {
-	pokemons, err := h.Store.GetAll(r.Context())
+
+	page := parseQueryInt(r, "page", defaultPage)
+	limit := parseQueryInt(r, "limit", defaultLimit)
+
+	if page < 1 {
+		page = defaultPage
+	}
+	if limit < 1 {
+		limit = defaultLimit
+	}
+	if limit > maxLimit {
+		limit = maxLimit
+	}
+
+	pokemons, total, err := h.Store.GetAll(r.Context(), page, limit)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "internal error")
 		return
 	}
-	writeJSON(w, http.StatusOK, pokemons)
+
+	response := models.PaginatedResponse{
+		Data:       pokemons,
+		Page:       page,
+		Limit:      limit,
+		TotalItems: total,
+		TotalPages: store.TotalPages(total, limit),
+	}
+
+	writeJSON(w, http.StatusOK, response)
+}
+
+func parseQueryInt(r *http.Request, key string, fallback int) int {
+	value := r.URL.Query().Get(key)
+	if value == "" {
+		return fallback
+	}
+
+	parsed, err := strconv.Atoi(value)
+	if err != nil {
+		return fallback
+	}
+	return parsed
 }
 
 // GET /pokemons/{id}
