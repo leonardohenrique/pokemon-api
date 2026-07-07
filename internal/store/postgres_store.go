@@ -23,7 +23,7 @@ func (s *PokemonStore) GetAll(ctx context.Context) ([]models.Pokemon, error) {
 	rows, err := s.db.Query(ctx,
 		"SELECT id, name, type, level, hp FROM pokemons ORDER BY id")
 	if err != nil {
-		return nil, fmt.Errorf("erro ao buscar pokemons: %w", err)
+		return nil, fmt.Errorf("failed to fetch pokemons: %w", err)
 	}
 	defer rows.Close()
 
@@ -31,7 +31,7 @@ func (s *PokemonStore) GetAll(ctx context.Context) ([]models.Pokemon, error) {
 	for rows.Next() {
 		var p models.Pokemon
 		if err := rows.Scan(&p.ID, &p.Name, &p.Type, &p.Level, &p.HP); err != nil {
-			return nil, fmt.Errorf("erro ao ler linha: %w", err)
+			return nil, fmt.Errorf("failed to scan row: %w", err)
 		}
 		result = append(result, p)
 	}
@@ -45,10 +45,10 @@ func (s *PokemonStore) GetByID(ctx context.Context, id int) (models.Pokemon, err
 	).Scan(&p.ID, &p.Name, &p.Type, &p.Level, &p.HP)
 
 	if errors.Is(err, pgx.ErrNoRows) {
-		return models.Pokemon{}, errors.New("pokemon não encontrado")
+		return models.Pokemon{}, errors.New("pokemon not found")
 	}
 	if err != nil {
-		return models.Pokemon{}, fmt.Errorf("erro ao buscar pokemon: %w", err)
+		return models.Pokemon{}, fmt.Errorf("failed to fetch pokemon: %w", err)
 	}
 	return p, nil
 }
@@ -62,7 +62,7 @@ func (s *PokemonStore) Create(ctx context.Context, p models.Pokemon) (models.Pok
 	).Scan(&p.ID)
 
 	if err != nil {
-		return models.Pokemon{}, fmt.Errorf("erro ao criar pokemon: %w", err)
+		return models.Pokemon{}, fmt.Errorf("failed to create pokemon: %w", err)
 	}
 	return p, nil
 }
@@ -74,10 +74,10 @@ func (s *PokemonStore) Update(ctx context.Context, id int, p models.Pokemon) (mo
 		p.Name, p.Type, p.Level, p.HP, id,
 	)
 	if err != nil {
-		return models.Pokemon{}, fmt.Errorf("erro ao atualizar pokemon: %w", err)
+		return models.Pokemon{}, fmt.Errorf("failed to update pokemon: %w", err)
 	}
 	if cmdTag.RowsAffected() == 0 {
-		return models.Pokemon{}, errors.New("pokemon não encontrado")
+		return models.Pokemon{}, errors.New("pokemon not found")
 	}
 
 	p.ID = id
@@ -87,10 +87,10 @@ func (s *PokemonStore) Update(ctx context.Context, id int, p models.Pokemon) (mo
 func (s *PokemonStore) Delete(ctx context.Context, id int) error {
 	cmdTag, err := s.db.Exec(ctx, "DELETE FROM pokemons WHERE id = $1", id)
 	if err != nil {
-		return fmt.Errorf("erro ao deletar pokemon: %w", err)
+		return fmt.Errorf("failed to delete pokemon: %w", err)
 	}
 	if cmdTag.RowsAffected() == 0 {
-		return errors.New("pokemon não encontrado")
+		return errors.New("pokemon not found")
 	}
 	return nil
 }

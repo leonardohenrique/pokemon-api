@@ -22,7 +22,7 @@ func main() {
 
 	db, err := store.NewPostgresPool(ctx, dsn)
 	if err != nil {
-		log.Fatalf("erro ao conectar no banco: %v", err)
+		log.Fatalf("failed to connect to database: %v", err)
 	}
 	defer db.Close()
 
@@ -53,7 +53,7 @@ func main() {
 		port = "8080"
 	}
 
-	log.Printf("servidor rodando na porta %s", port)
+	log.Printf("server running on port %s", port)
 	if err := http.ListenAndServe(":"+port, handler); err != nil {
 		log.Fatal(err)
 	}

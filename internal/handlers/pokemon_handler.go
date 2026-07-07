@@ -7,6 +7,7 @@ import (
 
 	"github.com/leonardohenrique/pokemon-api/internal/models"
 	"github.com/leonardohenrique/pokemon-api/internal/store"
+	"github.com/leonardohenrique/pokemon-api/internal/validation"
 )
 
 type PokemonHandler struct {
@@ -31,7 +32,7 @@ func writeError(w http.ResponseWriter, status int, message string) {
 func (h *PokemonHandler) List(w http.ResponseWriter, r *http.Request) {
 	pokemons, err := h.Store.GetAll(r.Context())
 	if err != nil {
-		writeError(w, http.StatusInternalServerError, "erro interno")
+		writeError(w, http.StatusInternalServerError, "internal error")
 		return
 	}
 	writeJSON(w, http.StatusOK, pokemons)
@@ -41,7 +42,7 @@ func (h *PokemonHandler) List(w http.ResponseWriter, r *http.Request) {
 func (h *PokemonHandler) Get(w http.ResponseWriter, r *http.Request) {
 	id, err := strconv.Atoi(r.PathValue("id"))
 	if err != nil {
-		writeError(w, http.StatusBadRequest, "id inválido")
+		writeError(w, http.StatusBadRequest, "invalid id")
 		return
 	}
 
@@ -57,17 +58,21 @@ func (h *PokemonHandler) Get(w http.ResponseWriter, r *http.Request) {
 func (h *PokemonHandler) Create(w http.ResponseWriter, r *http.Request) {
 	var p models.Pokemon
 	if err := json.NewDecoder(r.Body).Decode(&p); err != nil {
-		writeError(w, http.StatusBadRequest, "corpo da requisição inválido")
+		writeError(w, http.StatusBadRequest, "invalid request body")
 		return
 	}
-	if p.Name == "" {
-		writeError(w, http.StatusBadRequest, "nome é obrigatório")
+
+	if validationErrors := validation.Validate(p); validationErrors != nil {
+		writeJSON(w, http.StatusUnprocessableEntity, map[string]interface{}{
+			"error":  "invalid data",
+			"fields": validationErrors,
+		})
 		return
 	}
 
 	created, err := h.Store.Create(r.Context(), p)
 	if err != nil {
-		writeError(w, http.StatusInternalServerError, "erro interno")
+		writeError(w, http.StatusInternalServerError, "internal error")
 		return
 	}
 	writeJSON(w, http.StatusCreated, created)
@@ -77,13 +82,21 @@ func (h *PokemonHandler) Create(w http.ResponseWriter, r *http.Request) {
 func (h *PokemonHandler) Update(w http.ResponseWriter, r *http.Request) {
 	id, err := strconv.Atoi(r.PathValue("id"))
 	if err != nil {
-		writeError(w, http.StatusBadRequest, "id inválido")
+		writeError(w, http.StatusBadRequest, "invalid id")
 		return
 	}
 
 	var p models.Pokemon
 	if err := json.NewDecoder(r.Body).Decode(&p); err != nil {
-		writeError(w, http.StatusBadRequest, "corpo da requisição inválido")
+		writeError(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+
+	if validationErrors := validation.Validate(p); validationErrors != nil {
+		writeJSON(w, http.StatusUnprocessableEntity, map[string]interface{}{
+			"error":  "invalid data",
+			"fields": validationErrors,
+		})
 		return
 	}
 
@@ -99,7 +112,7 @@ func (h *PokemonHandler) Update(w http.ResponseWriter, r *http.Request) {
 func (h *PokemonHandler) Delete(w http.ResponseWriter, r *http.Request) {
 	id, err := strconv.Atoi(r.PathValue("id"))
 	if err != nil {
-		writeError(w, http.StatusBadRequest, "id inválido")
+		writeError(w, http.StatusBadRequest, "invalid id")
 		return
 	}
 
