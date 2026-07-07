@@ -7,6 +7,7 @@ import (
 	"os"
 
 	"github.com/leonardohenrique/pokemon-api/internal/handlers"
+	"github.com/leonardohenrique/pokemon-api/internal/middleware"
 	"github.com/leonardohenrique/pokemon-api/internal/store"
 )
 
@@ -40,13 +41,20 @@ func main() {
 		w.Write([]byte("ok"))
 	})
 
+	// Encadeia os middlewares em volta do mux inteiro.
+	// Ordem de execução: Logging -> CORS -> handler final
+	handler := middleware.Chain(mux,
+		middleware.Logging,
+		middleware.CORS,
+	)
+
 	port := os.Getenv("PORT")
 	if port == "" {
 		port = "8080"
 	}
 
 	log.Printf("servidor rodando na porta %s", port)
-	if err := http.ListenAndServe(":"+port, mux); err != nil {
+	if err := http.ListenAndServe(":"+port, handler); err != nil {
 		log.Fatal(err)
 	}
 }
