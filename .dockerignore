@@ -1,3 +1,6 @@
-*.md
 .git
 .gitignore
+*.md
+.env
+docker-compose.yml
+migrations/

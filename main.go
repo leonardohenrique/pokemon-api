@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"log"
 	"net/http"
 	"os"
@@ -10,7 +11,21 @@ import (
 )
 
 func main() {
-	pokemonStore := store.NewPokemonStore()
+
+	ctx := context.Background()
+
+	dsn := os.Getenv("DATABASE_URL")
+	if dsn == "" {
+		dsn = "postgres://pokemon:pokemon123@localhost:5432/pokemon_db"
+	}
+
+	db, err := store.NewPostgresPool(ctx, dsn)
+	if err != nil {
+		log.Fatalf("erro ao conectar no banco: %v", err)
+	}
+	defer db.Close()
+
+	pokemonStore := store.NewPokemonStore(db)
 	h := handlers.NewPokemonHandler(pokemonStore)
 
 	mux := http.NewServeMux()

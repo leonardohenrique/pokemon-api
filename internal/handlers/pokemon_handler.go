@@ -29,7 +29,11 @@ func writeError(w http.ResponseWriter, status int, message string) {
 
 // GET /pokemons
 func (h *PokemonHandler) List(w http.ResponseWriter, r *http.Request) {
-	pokemons := h.Store.GetAll()
+	pokemons, err := h.Store.GetAll(r.Context())
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "erro interno")
+		return
+	}
 	writeJSON(w, http.StatusOK, pokemons)
 }
 
@@ -41,7 +45,7 @@ func (h *PokemonHandler) Get(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	pokemon, err := h.Store.GetByID(id)
+	pokemon, err := h.Store.GetByID(r.Context(), id)
 	if err != nil {
 		writeError(w, http.StatusNotFound, err.Error())
 		return
@@ -56,13 +60,16 @@ func (h *PokemonHandler) Create(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "corpo da requisição inválido")
 		return
 	}
-
 	if p.Name == "" {
 		writeError(w, http.StatusBadRequest, "nome é obrigatório")
 		return
 	}
 
-	created := h.Store.Create(p)
+	created, err := h.Store.Create(r.Context(), p)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "erro interno")
+		return
+	}
 	writeJSON(w, http.StatusCreated, created)
 }
 
@@ -80,7 +87,7 @@ func (h *PokemonHandler) Update(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	updated, err := h.Store.Update(id, p)
+	updated, err := h.Store.Update(r.Context(), id, p)
 	if err != nil {
 		writeError(w, http.StatusNotFound, err.Error())
 		return
@@ -96,7 +103,7 @@ func (h *PokemonHandler) Delete(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := h.Store.Delete(id); err != nil {
+	if err := h.Store.Delete(r.Context(), id); err != nil {
 		writeError(w, http.StatusNotFound, err.Error())
 		return
 	}
