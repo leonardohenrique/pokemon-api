@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"strings"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -20,25 +21,67 @@ func NewPokemonStore(db *pgxpool.Pool) *PokemonStore {
 	return &PokemonStore{db: db}
 }
 
-func (s *PokemonStore) GetAll(ctx context.Context, page, limit int) ([]models.Pokemon, int, error) {
+// GetAll agora pode receber filtro por tipos
+func (s *PokemonStore) GetAll(ctx context.Context, page, limit int, types []string) ([]models.Pokemon, int, error) {
 	offset := (page - 1) * limit
 
-	// Total de registros, pra calcular quantas páginas existem
 	var total int
-	err := s.db.QueryRow(ctx, "SELECT COUNT(*) FROM pokemons").Scan(&total)
-	if err != nil {
-		return nil, 0, fmt.Errorf("erro ao contar pokemons: %w", err)
+	var err error
+	var rows pgx.Rows
+
+	if len(types) == 0 {
+		// Sem filtro de tipo, query simples
+		err = s.db.QueryRow(ctx, "SELECT COUNT(*) FROM pokemons").Scan(&total)
+		if err != nil {
+			return nil, 0, fmt.Errorf("erro ao contar pokemons: %w", err)
+		}
+
+		rows, err = s.db.Query(ctx,
+			`SELECT id, name, type, level, hp FROM pokemons
+			 ORDER BY id
+			 LIMIT $1 OFFSET $2`,
+			limit, offset,
+		)
+		if err != nil {
+			return nil, 0, fmt.Errorf("erro ao buscar pokemons: %w", err)
+		}
+	} else {
+		// Com filtro de tipos, faz query com WHERE para filtrar pokemons que contenham pelo menos um dos tipos
+		var params []interface{}
+		params = append(params, limit, offset)
+
+		// params para WHERE
+		for _, t := range types {
+			params = append(params, t)
+		}
+
+		// Monta SQL para WHERE ANY
+		// O campo tipo pode ser armazenado como array ou string no banco, assumirei que é string com tipo(s) separados (ex: 'fire,water') - ajusto com ILIKE ANY
+		// Ajustarei para Simplificar assumindo string JSON array e usar LIKE ANY
+
+		// Constrói os placeholders para WHERE
+		likeClauses := make([]string, len(types))
+		for i := range types {
+			// Placeholder depois de limit e offset, então começa em $3
+			likeClauses[i] = fmt.Sprintf("type ILIKE '%%' || $%d || '%%'", i+3) // insensível e busca substring
+		}
+
+		query := fmt.Sprintf(`SELECT id, name, type, level, hp FROM pokemons
+		 WHERE %s
+		 ORDER BY id
+		 LIMIT $1 OFFSET $2`, strings.Join(likeClauses, " OR "))
+
+		err = s.db.QueryRow(ctx, fmt.Sprintf("SELECT COUNT(*) FROM pokemons WHERE %s", strings.Join(likeClauses, " OR ")), params[2:]...).Scan(&total)
+		if err != nil {
+			return nil, 0, fmt.Errorf("erro ao contar pokemons com filtro: %w", err)
+		}
+
+		rows, err = s.db.Query(ctx, query, params...)
+		if err != nil {
+			return nil, 0, fmt.Errorf("erro ao buscar pokemons com filtro: %w", err)
+		}
 	}
 
-	rows, err := s.db.Query(ctx,
-		`SELECT id, name, type, level, hp FROM pokemons
-		 ORDER BY id
-		 LIMIT $1 OFFSET $2`,
-		limit, offset,
-	)
-	if err != nil {
-		return nil, 0, fmt.Errorf("erro ao buscar pokemons: %w", err)
-	}
 	defer rows.Close()
 
 	result := make([]models.Pokemon, 0, limit)

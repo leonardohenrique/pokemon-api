@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"strconv"
+	"strings"
 
 	"github.com/leonardohenrique/pokemon-api/internal/models"
 	"github.com/leonardohenrique/pokemon-api/internal/store"
@@ -50,7 +51,14 @@ func (h *PokemonHandler) List(w http.ResponseWriter, r *http.Request) {
 		limit = maxLimit
 	}
 
-	pokemons, total, err := h.Store.GetAll(r.Context(), page, limit)
+	// Lê filtro por tipo, separado por vírgula
+	typesStr := r.URL.Query().Get("type")
+	var types []string
+	if typesStr != "" {
+		types = strings.Split(typesStr, ",")
+	}
+
+	pokemons, total, err := h.Store.GetAll(r.Context(), page, limit, types)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "internal error")
 		return
