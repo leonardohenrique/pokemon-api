@@ -50,7 +50,9 @@ func (h *PokemonHandler) List(w http.ResponseWriter, r *http.Request) {
 		limit = maxLimit
 	}
 
-	pokemons, total, err := h.Store.GetAll(r.Context(), page, limit)
+	pokeType := r.URL.Query().Get("type")
+
+	pokemons, total, err := h.Store.GetAll(r.Context(), page, limit, pokeType)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "internal error")
 		return

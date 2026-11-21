@@ -20,22 +20,44 @@ func NewPokemonStore(db *pgxpool.Pool) *PokemonStore {
 	return &PokemonStore{db: db}
 }
 
-func (s *PokemonStore) GetAll(ctx context.Context, page, limit int) ([]models.Pokemon, int, error) {
+// Modificado para aceitar filtro opcional por tipo
+func (s *PokemonStore) GetAll(ctx context.Context, page, limit int, pokeType string) ([]models.Pokemon, int, error) {
 	offset := (page - 1) * limit
 
-	// Total de registros, pra calcular quantas páginas existem
 	var total int
-	err := s.db.QueryRow(ctx, "SELECT COUNT(*) FROM pokemons").Scan(&total)
-	if err != nil {
-		return nil, 0, fmt.Errorf("erro ao contar pokemons: %w", err)
+	var rows pgx.Rows
+	var err error
+
+	// Verifica se filtro de tipo foi passado
+	if pokeType != "" {
+		// Conta total com filtro
+		err = s.db.QueryRow(ctx, "SELECT COUNT(*) FROM pokemons WHERE type = $1", pokeType).Scan(&total)
+		if err != nil {
+			return nil, 0, fmt.Errorf("erro ao contar pokemons por tipo: %w", err)
+		}
+
+		rows, err = s.db.Query(ctx,
+			`SELECT id, name, type, level, hp FROM pokemons
+			 WHERE type = $1
+			 ORDER BY id
+			 LIMIT $2 OFFSET $3`,
+			pokeType, limit, offset,
+		)
+	} else {
+		// Sem filtro
+		err = s.db.QueryRow(ctx, "SELECT COUNT(*) FROM pokemons").Scan(&total)
+		if err != nil {
+			return nil, 0, fmt.Errorf("erro ao contar pokemons: %w", err)
+		}
+
+		rows, err = s.db.Query(ctx,
+			`SELECT id, name, type, level, hp FROM pokemons
+			 ORDER BY id
+			 LIMIT $1 OFFSET $2`,
+			limit, offset,
+		)
 	}
 
-	rows, err := s.db.Query(ctx,
-		`SELECT id, name, type, level, hp FROM pokemons
-		 ORDER BY id
-		 LIMIT $1 OFFSET $2`,
-		limit, offset,
-	)
 	if err != nil {
 		return nil, 0, fmt.Errorf("erro ao buscar pokemons: %w", err)
 	}
