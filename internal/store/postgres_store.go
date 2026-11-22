@@ -25,13 +25,14 @@ func (s *PokemonStore) GetAll(ctx context.Context, page, limit int) ([]models.Po
 
 	// Total de registros, pra calcular quantas páginas existem
 	var total int
+	// Incluindo foto na consulta
 	err := s.db.QueryRow(ctx, "SELECT COUNT(*) FROM pokemons").Scan(&total)
 	if err != nil {
 		return nil, 0, fmt.Errorf("erro ao contar pokemons: %w", err)
 	}
 
 	rows, err := s.db.Query(ctx,
-		`SELECT id, name, type, level, hp FROM pokemons
+		`SELECT id, name, type, level, hp, photo_url FROM pokemons
 		 ORDER BY id
 		 LIMIT $1 OFFSET $2`,
 		limit, offset,
@@ -44,7 +45,7 @@ func (s *PokemonStore) GetAll(ctx context.Context, page, limit int) ([]models.Po
 	result := make([]models.Pokemon, 0, limit)
 	for rows.Next() {
 		var p models.Pokemon
-		if err := rows.Scan(&p.ID, &p.Name, &p.Type, &p.Level, &p.HP); err != nil {
+		if err := rows.Scan(&p.ID, &p.Name, &p.Type, &p.Level, &p.HP, &p.PhotoURL); err != nil {
 			return nil, 0, fmt.Errorf("erro ao ler linha: %w", err)
 		}
 		result = append(result, p)
@@ -63,8 +64,8 @@ func TotalPages(totalItems, limit int) int {
 func (s *PokemonStore) GetByID(ctx context.Context, id int) (models.Pokemon, error) {
 	var p models.Pokemon
 	err := s.db.QueryRow(ctx,
-		"SELECT id, name, type, level, hp FROM pokemons WHERE id = $1", id,
-	).Scan(&p.ID, &p.Name, &p.Type, &p.Level, &p.HP)
+		"SELECT id, name, type, level, hp, photo_url FROM pokemons WHERE id = $1", id,
+	).Scan(&p.ID, &p.Name, &p.Type, &p.Level, &p.HP, &p.PhotoURL)
 
 	if errors.Is(err, pgx.ErrNoRows) {
 		return models.Pokemon{}, errors.New("pokemon not found")
@@ -77,10 +78,10 @@ func (s *PokemonStore) GetByID(ctx context.Context, id int) (models.Pokemon, err
 
 func (s *PokemonStore) Create(ctx context.Context, p models.Pokemon) (models.Pokemon, error) {
 	err := s.db.QueryRow(ctx,
-		`INSERT INTO pokemons (name, type, level, hp)
-		 VALUES ($1, $2, $3, $4)
+		`INSERT INTO pokemons (name, type, level, hp, photo_url)
+		 VALUES ($1, $2, $3, $4, $5)
 		 RETURNING id`,
-		p.Name, p.Type, p.Level, p.HP,
+		p.Name, p.Type, p.Level, p.HP, p.PhotoURL,
 	).Scan(&p.ID)
 
 	if err != nil {
@@ -91,9 +92,9 @@ func (s *PokemonStore) Create(ctx context.Context, p models.Pokemon) (models.Pok
 
 func (s *PokemonStore) Update(ctx context.Context, id int, p models.Pokemon) (models.Pokemon, error) {
 	cmdTag, err := s.db.Exec(ctx,
-		`UPDATE pokemons SET name = $1, type = $2, level = $3, hp = $4
-		 WHERE id = $5`,
-		p.Name, p.Type, p.Level, p.HP, id,
+		`UPDATE pokemons SET name = $1, type = $2, level = $3, hp = $4, photo_url = $5
+		 WHERE id = $6`,
+		p.Name, p.Type, p.Level, p.HP, p.PhotoURL, id,
 	)
 	if err != nil {
 		return models.Pokemon{}, fmt.Errorf("failed to update pokemon: %w", err)
