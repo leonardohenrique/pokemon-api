@@ -1,64 +1,64 @@
 # Pokémon API
 
 ## Visão geral
-Este repositório contém uma API REST para gerenciamento de pokémons, permitindo operações CRUD (Create, Read, Update, Delete). A aplicação é escrita em Go, utiliza um banco de dados PostgreSQL para persistência, e suporta paginação nas consultas.
+Este repositório contém uma API REST para gerenciamento de pokémons. Implementada em Go, oferece operações CRUD para pokémons com atributos como nome, tipo, nível, HP e uma URL de foto. A API suporta paginação na listagem e validação dos dados de entrada.
 
 ## Arquitetura
 ```mermaid
 flowchart TD
-    Client -->|HTTP Requests| Server[API HTTP Server]
-    Server --> Middleware[Middleware (CORS, Logging)]
-    Server --> Handler[PokemonHandler]
-    Handler --> Store[PokemonStore (Postgres)]
-    Store -->|SQL Queries| Database[(Postgres DB)]
+    Client -->|HTTP Requests| API[Pokémon API Server]
+    API -->|Uses| Middleware
+    API -->|Calls| Handlers[Pokémon Handlers]
+    Handlers -->|Queries/Commands| Store[Postgres Store Layer]
+    Store --> DB[(PostgreSQL Database)]
 
-subgraph Server Application
-    Middleware --> Handler
-end
+    subgraph Middleware
+        CORS
+        Logging
+    end
 ```
 
 ## Como rodar
-O projeto pode ser construído e executado usando Go e Docker:
+A aplicação é containerizada. Para construir e rodar:
 
-### Sem Docker (local)
-1. Certifique-se de ter Go e Postgres instalados.
-2. Configure o banco de dados e rode a migration `migrations/001_create_pokemons.sql` para criar a tabela de pokémons.
-3. Configure a string de conexão ao banco no código (a confirmar onde exatamente).
-4. Execute o servidor com `go run .` ou compile com `go build` e rode o binário.
+```bash
+# Build da imagem
+docker build -t pokemon-api .
 
-### Com Docker
-1. Execute `docker build -t pokemon-api .`
-2. Execute o container com `docker run -p 8080:8080 pokemon-api`
+# Rodar container
+docker run -p 8080:8080 pokemon-api
+```
 
-O servidor escutará na porta 8080.
+A aplicação escuta na porta 8080.
 
 ## Configuração
-- Banco de dados PostgreSQL é requerido.
-- Variáveis de ambiente para conexão a confirmar (não encontrado no código analisado).
+Configuração básica via string de conexão PostgreSQL para conectar ao banco (a confirmar, pois o entrypoint/main config não foi encontrado diretamente).
 
 ## Principais fluxos/endpoints
-- `GET /pokemons` - Lista pokémons paginados. Parâmetros query: `page` (padrão 1), `limit` (padrão 10, máximo 100).
-- `GET /pokemons/{id}` - Obtém pokémon pelo ID.
-- `POST /pokemons` - Cria novo pokémon. Recebe JSON com os dados.
-- `PUT /pokemons/{id}` - Atualiza pokémon existente pelo ID.
-- `DELETE /pokemons/{id}` - Remove pokémon pelo ID.
-
-Os dados de pokémon contêm: id, name (string), type (array de strings com tipos válidos), level (int 1-100), hp (int), photo_url (string opcional).
+- `GET /pokemons` - Lista pokémons com paginação (query params `page`, `limit`)
+- `GET /pokemons/{id}` - Obtém pokémon por ID
+- `POST /pokemons` - Cria novo pokémon (validação aplicada)
+- `PUT /pokemons/{id}` - Atualiza pokémon existente
+- `DELETE /pokemons/{id}` - Remove pokémon
 
 ## Pontos de atenção
-- Validação dos dados é feita usando `github.com/go-playground/validator/v10` com mensagens customizadas.
-- Middlewares aplicam CORS liberando todos domínios e logging de requests.
-- Pagination é calculada com total de itens e total de páginas no response.
-- A configuração do banco e eventuais rotas de entrada principais não foram encontradas (possível entrada main.go e configuração a confirmar).
+- Validação rigorosa dos campos (nome, tipo, nível, HP) usando a biblioteca `go-playground/validator`
+- Middleware para CORS e logging de requisições implementados
+- Manipulação dos erros cuidadosamente feita, retornando códigos HTTP apropriados
+- SQL usa array para o tipo do pokémon
+- Migration SQL para criação da tabela pokemons está em `migrations/001_create_pokemons.sql`
+- A configuração da aplicação (como string de conexão e setup do servidor HTTP) não foi encontrada e deve ser confirmada
 
-## Arquivos principais
-- `internal/handlers/pokemon_handler.go`: lógica dos endpoints HTTP.
-- `internal/store/postgres_store.go`: persistência no Postgres.
-- `internal/models/pokemon.go`: modelo e estrutura de dados.
-- `internal/middleware/*.go`: middlewares para CORS e Logging.
-- `migrations/001_create_pokemons.sql`: script de criação da tabela no banco.
-- `Dockerfile`: configuração para container Docker.
+Arquivos principais:
+- Handlers: `internal/handlers/pokemon_handler.go`
+- Middleware: `internal/middleware/*.go`
+- Modelos: `internal/models/pokemon.go`
+- Store/Postgres: `internal/store/postgres_store.go`, `internal/store/db.go`
+- Validação: `internal/validation/validator.go`
+- Migration: `migrations/001_create_pokemons.sql`
+- Dockerfile na raiz
 
 ---
 
-Documento gerado a partir da análise dos arquivos mencionados. Configuração completa da conexão com o banco e o ponto de entrada do servidor são a confirmar.
+## Resumo para Pull Request
+Documentada API REST em Go para gerenciamento CRUD de pokémons, com paginação, validação e armazenamento em PostgreSQL. Documentação inclui principais arquivos, endpoints, arquitetura e uso do Docker. Ainda faltam detalhes da configuração da aplicação e entrypoint principal para execução do servidor, que devem ser confirmados posteriormente.
