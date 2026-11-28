@@ -2,8 +2,15 @@ package handlers
 
 import (
 	"encoding/json"
+	"fmt"
+	"io"
+	"mime/multipart"
 	"net/http"
+	"os"
+	"path/filepath"
 	"strconv"
+	"strings"
+	"time"
 
 	"github.com/leonardohenrique/pokemon-api/internal/models"
 	"github.com/leonardohenrique/pokemon-api/internal/store"
@@ -14,6 +21,7 @@ const (
 	defaultPage  = 1
 	defaultLimit = 10
 	maxLimit     = 100
+	uploadDir    = "./uploads"
 )
 
 type PokemonHandler struct {
@@ -96,12 +104,63 @@ func (h *PokemonHandler) Get(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, pokemon)
 }
 
+func saveUploadedFile(file multipart.File, header *multipart.FileHeader) (string, error) {
+	if err := os.MkdirAll(uploadDir, 0755); err != nil {
+		return "", fmt.Errorf("failed to create upload directory: %w", err)
+	}
+
+	ext := strings.ToLower(filepath.Ext(header.Filename))
+	fileName := fmt.Sprintf("pokemon_%d%s", time.Now().UnixNano(), ext)
+	filePath := filepath.Join(uploadDir, fileName)
+
+	outFile, err := os.Create(filePath)
+	if err != nil {
+		return "", fmt.Errorf("failed to create file: %w", err)
+	}
+	defer outFile.Close()
+
+	_, err = io.Copy(outFile, file)
+	if err != nil {
+		return "", fmt.Errorf("failed to write file: %w", err)
+	}
+
+	return fileName, nil
+}
+
 // POST /pokemons
 func (h *PokemonHandler) Create(w http.ResponseWriter, r *http.Request) {
+	// aceitar json e/ou multipart
+	contentType := r.Header.Get("Content-Type")
 	var p models.Pokemon
-	if err := json.NewDecoder(r.Body).Decode(&p); err != nil {
-		writeError(w, http.StatusBadRequest, "invalid request body")
-		return
+
+	if strings.HasPrefix(contentType, "multipart/form-data") {
+		if err := r.ParseMultipartForm(10 << 20); err != nil {
+			writeError(w, http.StatusBadRequest, "failed to parse multipart form")
+			return
+		}
+
+		jsonData := r.FormValue("pokemon")
+		if err := json.Unmarshal([]byte(jsonData), &p); err != nil {
+			writeError(w, http.StatusBadRequest, "invalid pokemon json data")
+			return
+		}
+
+		file, header, err := r.FormFile("photo")
+		if err == nil {
+			defer file.Close()
+			savedFileName, err := saveUploadedFile(file, header)
+			if err != nil {
+				writeError(w, http.StatusInternalServerError, "failed to save photo")
+				return
+			}
+			p.PhotoURL = "/uploads/" + savedFileName
+		}
+	} else {
+		// json normal
+		if err := json.NewDecoder(r.Body).Decode(&p); err != nil {
+			writeError(w, http.StatusBadRequest, "invalid request body")
+			return
+		}
 	}
 
 	if validationErrors := validation.Validate(p); validationErrors != nil {
@@ -129,9 +188,36 @@ func (h *PokemonHandler) Update(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var p models.Pokemon
-	if err := json.NewDecoder(r.Body).Decode(&p); err != nil {
-		writeError(w, http.StatusBadRequest, "invalid request body")
-		return
+	contentType := r.Header.Get("Content-Type")
+
+	if strings.HasPrefix(contentType, "multipart/form-data") {
+		if err := r.ParseMultipartForm(10 << 20); err != nil {
+			writeError(w, http.StatusBadRequest, "failed to parse multipart form")
+			return
+		}
+
+		jsonData := r.FormValue("pokemon")
+		if err := json.Unmarshal([]byte(jsonData), &p); err != nil {
+			writeError(w, http.StatusBadRequest, "invalid pokemon json data")
+			return
+		}
+
+		file, header, err := r.FormFile("photo")
+		if err == nil {
+			defer file.Close()
+			savedFileName, err := saveUploadedFile(file, header)
+			if err != nil {
+				writeError(w, http.StatusInternalServerError, "failed to save photo")
+				return
+			}
+			p.PhotoURL = "/uploads/" + savedFileName
+		}
+	} else {
+		// json normal
+		if err := json.NewDecoder(r.Body).Decode(&p); err != nil {
+			writeError(w, http.StatusBadRequest, "invalid request body")
+			return
+		}
 	}
 
 	if validationErrors := validation.Validate(p); validationErrors != nil {
